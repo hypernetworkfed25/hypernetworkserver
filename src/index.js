@@ -1,65 +1,46 @@
 /**
- * Welcome to Cloudflare Workers! This is your first Durable Objects application.
+ * Welcome to Cloudflare Workers! This is your first worker.
  *
  * - Run `npm run dev` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your Durable Object in action
- * - Run `npm run deploy` to publish your application
+ * - Open a browser tab at http://localhost:8787/ to see your worker in action
+ * - Run `npm run deploy` to publish your worker
  *
- * Learn more at https://developers.cloudflare.com/durable-objects
+ * Learn more at https://developers.cloudflare.com/workers/
  */
 
-/**
- * Env provides a mechanism to reference bindings declared in wrangler.toml within JavaScript
- *
- * @typedef {Object} Env
- * @property {DurableObjectNamespace} MY_DURABLE_OBJECT - The Durable Object namespace binding
- */
+import handleProxy from './proxy';
+import handleRedirect from './redirect';
+import apiRouter from './router';
 
-/** A Durable Object's behavior is defined in an exported Javascript class */
-export class MyDurableObject {
-	/**
-	 * The constructor is invoked once upon creation of the Durable Object, i.e. the first call to
-	 * 	`DurableObjectStub::get` for a given identifier
-	 *
-	 * @param {DurableObjectState} state - The interface for interacting with Durable Object state
-	 * @param {Env} env - The interface to reference bindings declared in wrangler.toml
-	 */
-	constructor(state, env) {}
-
-	/**
-	 * The Durable Object fetch handler will be invoked when a Durable Object instance receives a
-	 * 	request from a Worker via an associated stub
-	 *
-	 * @param {Request} request - The request submitted to a Durable Object instance from a Worker
-	 * @returns {Promise<Response>} The response to be sent back to the Worker
-	 */
-	async fetch(request) {
-		return new Response('Hello World');
-	}
-}
-
+// Export a default object containing event handlers
 export default {
-	/**
-	 * This is the standard fetch handler for a Cloudflare Worker
-	 *
-	 * @param {Request} request - The request submitted to the Worker from the client
-	 * @param {Env} env - The interface to reference bindings declared in wrangler.toml
-	 * @param {ExecutionContext} ctx - The execution context of the Worker
-	 * @returns {Promise<Response>} The response to be sent back to the client
-	 */
+	// The fetch handler is invoked when this worker receives a HTTP(S) request
+	// and should return a Response (optionally wrapped in a Promise)
 	async fetch(request, env, ctx) {
-		// We will create a `DurableObjectId` using the pathname from the Worker request
-		// This id refers to a unique instance of our 'MyDurableObject' class above
-		let id = env.MY_DURABLE_OBJECT.idFromName(new URL(request.url).pathname);
+		// You'll find it helpful to parse the request.url string into a URL object. Learn more at https://developer.mozilla.org/en-US/docs/Web/API/URL
+		const url = new URL(request.url);
 
-		// This stub creates a communication channel with the Durable Object instance
-		// The Durable Object constructor will be invoked upon the first call for a given id
-		let stub = env.MY_DURABLE_OBJECT.get(id);
+		// You can get pretty far with simple logic like if/switch-statements
+		switch (url.pathname) {
+			case '/redirect':
+				return handleRedirect.fetch(request, env, ctx);
 
-		// We call `fetch()` on the stub to send a request to the Durable Object instance
-		// The Durable Object instance will invoke its fetch handler to handle the request
-		let response = await stub.fetch(request);
+			case '/proxy':
+				return handleProxy.fetch(request, env, ctx);
+		}
 
-		return response;
+		if (url.pathname.startsWith('/api/')) {
+			// You can also use more robust routing
+			return apiRouter.handle(request);
+		}
+
+		return new Response(
+			`Try making requests to:
+      <ul>
+      <li><code><a href="/redirect?redirectUrl=https://example.com/">/redirect?redirectUrl=https://example.com/</a></code>,</li>
+      <li><code><a href="/proxy?modify&proxyUrl=https://example.com/">/proxy?modify&proxyUrl=https://example.com/</a></code>, or</li>
+      <li><code><a href="/api/todos">/api/todos</a></code></li>`,
+			{ headers: { 'Content-Type': 'text/html' } }
+		);
 	},
 };
