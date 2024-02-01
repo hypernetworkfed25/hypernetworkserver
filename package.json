@@ -10,5 +10,9 @@
   "devDependencies": {
     "itty-router": "^3.0.12",
     "wrangler": "^3.0.0"
+  },
+  "dependencies": {
+    "@notionhq/client": "^2.2.14",
+    "lodash": "^4.17.21"
   }
 }
