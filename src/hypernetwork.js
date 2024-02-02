@@ -2,7 +2,6 @@ const { Client } = require('@notionhq/client');
 const isEmpty = require('lodash/fp/isEmpty');
 const compact = require('lodash/fp/compact');
 const omit = require('lodash/fp/omit');
-const uniq = require('lodash/fp/uniq');
 
 const convertProgramsQueryToNotionFilters = ({ programs = [] }) => {
   return isEmpty(programs) ? [] : programs.map((program) => ({ property: 'Program', select: { equals: program } }));
@@ -184,11 +183,24 @@ const convertHardSkillQueryToNotionFilters = ({ hardSkills = [] }) => {
   return filter;
 };
 
+const convertHasPortfolioQueryToNotionFilters = ({ hasPortfolio }) => {
+  if (!hasPortfolio) return [];
+  return [
+    {
+      property: 'Portfolio',
+      url: {
+        is_not_empty: true,
+      },
+    },
+  ];
+};
+
 const convertQueryToNotionFilters = async (env, parameters) => {
   const nameFilters = convertNameQueryToNotionFilters(parameters);
   const hardSkillFilters = convertHardSkillQueryToNotionFilters(parameters);
   const programFilters = convertProgramsQueryToNotionFilters(parameters);
   const languageFilters = convertLanguagesQueryToNotionFilters(parameters);
+  const portfolioFilters = convertHasPortfolioQueryToNotionFilters(parameters);
 
   const filter = {
     and: compact([
@@ -199,8 +211,10 @@ const convertQueryToNotionFilters = async (env, parameters) => {
         : undefined,
       ...hardSkillFilters,
       ...languageFilters,
+      ...portfolioFilters,
     ]),
   };
+
   return filter;
 };
 
