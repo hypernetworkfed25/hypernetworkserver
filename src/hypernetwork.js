@@ -209,6 +209,8 @@ export default async (request, env, ctx) => {
   const parameters = await request.json();
 
   const filter = await convertQueryToNotionFilters(env, parameters);
+  if (isEmpty(filter.and)) return new Response(JSON.stringify([]));
+
   const hyperNetworkResults = await queryNotionDatabase(env.NOTION_KEY, env.HYPER_NETWORK_DATABASE_ID, filter);
 
   const students = convertHyperNetworkResultsToStudents(hyperNetworkResults);
@@ -216,5 +218,5 @@ export default async (request, env, ctx) => {
   const studentsWithContact = await composeStudentsWithContact(env, studentsWithHardSkills);
   const viewableStudents = convertToStudentView(studentsWithContact);
 
-  return new Response(JSON.stringify({ filter, viewableStudents }));
+  return new Response(JSON.stringify(viewableStudents));
 };
