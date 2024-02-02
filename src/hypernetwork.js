@@ -2,38 +2,13 @@ const { Client } = require('@notionhq/client');
 const isEmpty = require('lodash/fp/isEmpty');
 const compact = require('lodash/fp/compact');
 const omit = require('lodash/fp/omit');
-
-// const HN_QUERY_TO_PROPERTY_MAP = {
-//   id: 'Student ID',
-//   firstName: 'First Name',
-//   lastName: 'Last Name',
-//   hyperEmail: 'Hyper Email',
-//   program: 'Program',
-//   languages: 'Languages',
-//   hardSkills: 'Hard Skills',
-//   availability: 'Availability',
-//   portfolio: 'Portfolio',
-//   contact: 'Contact',
-// };
-
-// const HN_HARD_SKILL_QUERY_TO_PROPERTY_MAP = {
-//   id: 'Student ID',
-//   skill: 'Skill',
-//   comment: 'Comment',
-// };
-
-// const HN_CONTACT_QUERY_TO_PROPERTY_MAP = {
-//   id: 'Student ID',
-//   email: 'Email',
-//   linkedin: 'LinedIn',
-//   slack: 'Slack Member ID',
-// };
+const uniq = require('lodash/fp/uniq');
 
 const convertProgramsQueryToNotionFilters = ({ programs = [] }) => {
   return isEmpty(programs) ? [] : programs.map((program) => ({ property: 'Program', select: { equals: program } }));
 };
 
-const convertLanguagesQueryToNotionFilters = ({ programs, languages }) => {
+const convertLanguagesQueryToNotionFilters = ({ languages }) => {
   return isEmpty(languages)
     ? []
     : languages.map((language) => ({
@@ -44,61 +19,17 @@ const convertLanguagesQueryToNotionFilters = ({ programs, languages }) => {
       }));
 };
 
-const convertSkillQueryToNotionFilters = ({ hardSkills }) => {
-  if (isEmpty(hardSkills)) {
-    return;
-  }
-  const skillFilters = hardSkills.map((hardSkill) => ({
-    property: 'Skill',
-    select: {
-      equals: hardSkill,
-    },
-  }));
-  return {
-    or: skillFilters,
-  };
-};
-
 const queryNotionDatabase = async (notionKey, databaseId, filter) => {
   const notion = new Client({ auth: notionKey });
 
-  const result =
-    !filter || isEmpty(filter.or)
-      ? {}
-      : await notion.databases.query({
-          database_id: databaseId,
-          filter,
-        });
+  const result = isEmpty(filter)
+    ? {}
+    : await notion.databases.query({
+        database_id: databaseId,
+        filter,
+      });
 
   return result;
-};
-
-// FIXME: (jinjing) only need id, `hardSkillsMap` is useless.
-const convertHardSkillsToFilters = async (skillResults) => {
-  const hardSkillsMap = skillResults?.results?.reduce((map, { properties }) => {
-    const id = properties['Student ID'] && properties['Student ID']?.title[0] ? properties['Student ID']?.title[0].plain_text : undefined;
-    if (!id) return map;
-
-    const skill = {
-      skill: properties['Skill']?.select ? properties['Skill']?.select.name : '',
-      comment:
-        properties['Comment']?.rich_text && properties['Comment']?.rich_text[0] ? properties['Comment']?.rich_text[0].plain_text : '',
-    };
-    map[id] ||= [];
-    map[id].push(skill);
-    return map;
-  }, {});
-
-  if (isEmpty(hardSkillsMap)) return;
-
-  const filter = Object.keys(hardSkillsMap).map((id) => ({
-    property: 'Student ID',
-    title: {
-      equals: id,
-    },
-  }));
-
-  return filter;
 };
 
 const convertHyperNetworkResultsToStudents = (hyperNetworkResults) => {
@@ -210,7 +141,7 @@ const convertToStudentView = (composedStudents) => {
 
 const convertNameQueryToNotionFilters = ({ name }) => {
   if (isEmpty(name)) {
-    return;
+    return [];
   }
 
   const names = compact(name.split(' '));
@@ -234,21 +165,50 @@ const convertNameQueryToNotionFilters = ({ name }) => {
   return filter;
 };
 
-export default async (request, env, ctx) => {
-  const parameters = await request.json();
+const convertHardSkillQueryToNotionFilters = ({ hardSkills = [] }) => {
+  if (isEmpty(hardSkills)) {
+    return [];
+  }
 
-  const nameFilter = convertNameQueryToNotionFilters(parameters);
+  const filter = hardSkills.flatMap((hardSkill) => {
+    return [
+      {
+        property: 'Skills',
+        multi_select: {
+          contains: hardSkill,
+        },
+      },
+    ];
+  });
 
-  const skillFilters = convertSkillQueryToNotionFilters(parameters);
-  const skillResults = await queryNotionDatabase(env.NOTION_KEY, env.HYPER_NETWORK_HARD_SKILLS_DATABASE_ID, skillFilters);
-  const studentIdFilter = (await convertHardSkillsToFilters(skillResults)) || [];
+  return filter;
+};
 
+const convertQueryToNotionFilters = async (env, parameters) => {
+  const nameFilters = convertNameQueryToNotionFilters(parameters);
+  const hardSkillFilters = convertHardSkillQueryToNotionFilters(parameters);
   const programFilters = convertProgramsQueryToNotionFilters(parameters);
   const languageFilters = convertLanguagesQueryToNotionFilters(parameters);
 
   const filter = {
-    or: [...nameFilter, ...studentIdFilter, ...languageFilters, ...programFilters],
+    and: compact([
+      nameFilters.length
+        ? {
+            or: [...nameFilters],
+          }
+        : undefined,
+      ...hardSkillFilters,
+      ...programFilters,
+      ...languageFilters,
+    ]),
   };
+  return filter;
+};
+
+export default async (request, env, ctx) => {
+  const parameters = await request.json();
+
+  const filter = await convertQueryToNotionFilters(env, parameters);
   const hyperNetworkResults = await queryNotionDatabase(env.NOTION_KEY, env.HYPER_NETWORK_DATABASE_ID, filter);
 
   const students = convertHyperNetworkResultsToStudents(hyperNetworkResults);
@@ -256,5 +216,5 @@ export default async (request, env, ctx) => {
   const studentsWithContact = await composeStudentsWithContact(env, studentsWithHardSkills);
   const viewableStudents = convertToStudentView(studentsWithContact);
 
-  return new Response(JSON.stringify({ nameFilter, viewableStudents }));
+  return new Response(JSON.stringify({ filter, viewableStudents }));
 };
