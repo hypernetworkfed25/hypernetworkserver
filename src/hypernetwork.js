@@ -192,13 +192,12 @@ const convertQueryToNotionFilters = async (env, parameters) => {
 
   const filter = {
     and: compact([
-      nameFilters.length
+      nameFilters.length || programFilters.length
         ? {
-            or: [...nameFilters],
+            or: [...nameFilters, ...programFilters],
           }
         : undefined,
       ...hardSkillFilters,
-      ...programFilters,
       ...languageFilters,
     ]),
   };

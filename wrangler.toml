@@ -5,8 +5,12 @@ compatibility_date = "2024-01-29"
 # Variable bindings. These are arbitrary, plaintext strings (similar to environment variables)
 # Note: Use secrets to store sensitive data.
 # Docs: https://developers.cloudflare.com/workers/platform/environment-variables
-# [vars]
-# MY_VARIABLE = "production_value"
+[vars]
+NOTION_KEY = "secret_h9DnSrnq7AGZF8hXEPcBEXnfBzPhMmYJKJBob31f89e"
+NOTION_PAGE_ID = "87576f9461e440ed8346d4e20ff18f41"
+HYPER_NETWORK_DATABASE_ID = "5423edff80ec47ba94ed5793330c8f92"
+HYPER_NETWORK_HARD_SKILLS_DATABASE_ID = "d29c4df67bab40d0be0416baf671a412"
+HYPER_NETWORK_CONTACTS_DATABASE_ID = "d61b222b0ff24aacb018cd9c2bbe9c90"
 
 # Bind a KV Namespace. Use KV as persistent storage for small key-value pairs.
 # Docs: https://developers.cloudflare.com/workers/runtime-apis/kv
